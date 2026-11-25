@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+import sys,os,time,shutil,threading,json,urllib.request,urllib.parse
+from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+from PyQt6.QtCore import QUrl
+from PyQt6.QtWidgets import (QApplication,QMainWindow,QToolBar,QLineEdit,
+    QTabWidget,QPushButton,QMenu,QMessageBox)
+from PyQt6.QtGui import QAction,QIcon,QDesktopServices
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import (QWebEngineUrlRequestInterceptor,
+    QWebEngineProfile,QWebEngineSettings)
+
+os.environ["QT_LOGGING_RULES"]="*=false"
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"]="--log-level=3 --silent"
+B=getattr(sys,"_MEIPASS",os.path.dirname(os.path.abspath(__file__)))
+ICON=B+"/icon.svg"
+STRIPE=QUrl("https://buy.stripe.com/test_aFa28qgXI0iLfA0gxh97G00")
+DL=os.path.expanduser("~/Downloads")
+
+ERR=('<body style="background:#4c1d95;color:#fff;font-family:monospace;'
+'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+'height:100vh;margin:0;text-align:center"><div style="position:absolute;'
+'top:14px;left:16px;display:flex;align-items:center;gap:6px;background:#2e1065;'
+'border:1px solid #a855f7;padding:6px 10px;border-radius:8px"><svg width="20" '
+'height="20" viewBox="0 0 64 64" stroke="#ff5500" stroke-width="6" '
+'stroke-linecap="round"><line x1="32" y1="8" x2="32" y2="56"/><line x1="8" '
+'y1="32" x2="56" y2="32"/><line x1="15" y1="15" x2="49" y2="49"/><line x1="49"'
+' y1="15" x2="15" y2="49"/></svg><b>-</b></div><div style="display:flex;'
+'gap:14px;margin-bottom:8px"><svg width="48" height="48" viewBox="0 0 64 64" '
+'fill="none" stroke="#fff" stroke-width="3"><path d="M14 6h26l10 10v16l-8-4'
+'-6 6-8-5-6 5-8-4zM14 38l8 4 6-5 8 5 6-6 8 4v18H14z"/></svg>'
+'<svg width="48" height="48" viewBox="0 0 64 64" fill="none" stroke="#fff" '
+'stroke-width="3"><path d="M8 14c8-3 16-2 22 3v34c-6-5-14-6-22-3zM56 14'
+'c-8-3-16-2-22 3l4 8-6 8 5 9-3 9c6-5 14-6 22-3z"/></svg>'
+'<svg width="48" height="48" viewBox="0 0 64 64" fill="none" stroke="#fff" '
+'stroke-width="3"><path d="M30 8a24 24 0 1 0 0 48l-4-10 6-10-6-10 4-18z'
+'M36 8a24 24 0 1 1 0 48l-4-10 6-10-6-10 4-18z"/></svg></div>'
+'<h1>Aww it hurts!</h1><p>Check your DNS or proxy or your connection.</p>'
+'<div style="background:#2e1065;border:2px solid #a855f7;padding:8px 14px;'
+'border-radius:6px;margin-bottom:10px;font-size:12px"><b>[0.0] Kernel panic'
+' - BROWSER PANIC: FAILED TO READ THE DNS</b><br>BCH: 0 PID: 1 Comm: '
+'clais-browser</div><svg width="110" height="110" viewBox="0 0 21 21" '
+'fill="#000" style="background:#fff;padding:6px;border-radius:6px"><path d="'
+'M0 0h7v7H0zm1 1v5h5V1zm1 1h3v3H2zm12-2h7v7h-7zm1 1v5h5V1zm1 1h3v3h-3z'
+'M0 14h7v7H0zm1 1v5h5v-5zm1 1h3v3H2zm7-14h2v2H9zm3 1h1v3h-1zM8 5h3v2H8z'
+'m1 3h2v2H9zm4 0h3v2h-3zm4 0h4v2h-4zM8 11h2v3H8zm3 1h3v2h-3zm5-1h2v3h-2z'
+'m3 1h2v4h-2zM9 15h3v2H9zm4 1h2v3h-2zm3 2h5v3h-5zm-7 1h3v2H9z"/></svg></body>')
+
+CSS=["QMainWindow,QToolBar{background:#000;color:#fff;border:none}"
+"QToolBar QToolButton,QPushButton{background:#4b5563;color:#fff;border:none;"
+"font-size:15px;font-weight:bold;padding:7px 12px;border-radius:8px}"
+"QLineEdit{background:#161616;color:#fff;border:1px solid #374151;"
+"border-radius:10px;padding:7px 12px}",
+"QMainWindow,QToolBar{background:#e5e7eb;color:#111;border:none}"
+"QToolBar QToolButton,QPushButton{background:#6b7280;color:#fff;border:none;"
+"font-size:15px;font-weight:bold;padding:7px 12px;border-radius:8px}"
+"QLineEdit{background:#fff;color:#111;border:1px solid #9ca3af;"
+"border-radius:10px;padding:7px 12px}"]
+
+def sz(b):
+    for u in ("B","KB","MB","GB","TB","PB","ZB","YB"):
+        if b<1024: return f"{int(b)} B" if u=="B" else f"{b:.2f} {u}"
+        b/=1024
+    return f"{b:.2f} YB"
+
+class Srv(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        p = urllib.parse.urlparse(self.path)
+        if p.path == "/translate":
+            qs = urllib.parse.parse_qs(p.query)
+            q = urllib.parse.quote(qs.get("q", [""])[0])
+            sl, tl = qs.get("sl", ["auto"])[0], qs.get("tl", ["en"])[0]
+            try:
+                u = f"https://googleapis.com{sl}&tl={tl}&dt=t&q={q}"
+                d = json.loads(urllib.request.urlopen(u, timeout=8).read())
+                res = "".join(x[0] for x in d[0] if x and x[0])
+            except Exception:
+                res = qs.get("q", [""])[0]
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"text": res}).encode())
+        else:
+            fn = "/err.html" if p.path == "/err" else "/home.html"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html;charset=utf-8")
+            self.end_headers()
+            self.wfile.write(open(B + fn, "rb").read())
+
+srv=ThreadingHTTPServer(("127.0.0.1",0),Srv)
+PORT=srv.server_address[1]
+HOME=QUrl(f"http://127.0.0.1:{PORT}/")
+threading.Thread(target=srv.serve_forever,daemon=True).start()
+
+class Shield(QWebEngineUrlRequestInterceptor):
+    def interceptRequest(self,i):
+        u=i.requestUrl()
+        if any(x in u.host() for x in ("doubleclick.net","google-analytics.com","facebook.net")):i.block(True)
+        elif u.scheme()=="http" and u.host() not in ("localhost","127.0.0.1"):u.setScheme("https");i.redirect(u)
+
+class View(QWebEngineView):
+    def __init__(self,w): super().__init__();self.w=w
+    def createWindow(self,_): return self.w.tab(QUrl("about:blank"))
+
+class Browser(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Clais HTTPS Browser");self.setWindowIcon(QIcon(ICON))
+        self.resize(1280,820);self.th,self.dls=0,[];self.setStyleSheet(CSS.pop(0))
+        p=QWebEngineProfile.defaultProfile();st=os.path.expanduser("~/.local/share/ClaisBrowser")
+        os.makedirs(st,exist_ok=True);os.makedirs(DL,exist_ok=True)
+        p.setPersistentStoragePath(st);p.setDownloadPath(DL);p.downloadRequested.connect(self.dl)
+        #
+        p.setHttpUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        p.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled,True)
+        p.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled,True)
+        self.tabs=QTabWidget(documentMode=True);self.setCentralWidget(self.tabs)
+        nav=QToolBar(movable=False);self.addToolBar(nav)
+        for t,fn in [("←",lambda:self.cur().back()),("→",lambda:self.cur().forward()),
+            ("↻",lambda:self.cur().reload()),("⌂",lambda:self.cur().setUrl(HOME)),
+            ("+",lambda:self.tab(HOME)),("☀/🌑",self.flip),("★ Upgrade",lambda:self.tab(STRIPE))]:
+            a=QAction(t,self);a.triggered.connect(fn);nav.addAction(a)
+        self.bar=QLineEdit(placeholderText="Enter HTTPS URL...");self.bar.returnPressed.connect(self.go)
+        nav.addWidget(self.bar);self.db=QPushButton("↓");self.db.clicked.connect(self.menu)
+        nav.addWidget(self.db);self.tab(HOME)
+
+    def go(self):
+        t=self.bar.text().strip()
+        if t:
+            if "." not in t and "://" not in t: self.cur().setUrl(QUrl(f"http://127.0.0.1:{PORT}/err")); self.bar.setText(""); return
+            self.cur().setUrl(QUrl(t if "://" in t else "https://"+t))
+
+    def ok_sp(self,n):
+        d,r=shutil.disk_usage(DL).free,os.sysconf("SC_PAGE_SIZE")*os.sysconf("SC_AVPHYS_PAGES")
+        if n>0 and (n>r+d if n>=1024**4 else n>d):
+            try:self.db.setText("✕ No Space");self.db.setStyleSheet("background:#dc2626")
+            except RuntimeError:pass
+            QMessageBox.warning(self,"Error","Could not download the file: you don't have more space.")
+            return False
+        return True
+
+    def dl(self,it):
+        if not self.ok_sp(it.totalBytes()):return it.cancel()
+        it.setDownloadDirectory(DL);fn,fp,t0=it.downloadFileName(),os.path.join(DL,it.downloadFileName()),time.time()
+        it.accept()
+        def tick():
+            r,t=it.receivedBytes(),it.totalBytes()
+            if not self.ok_sp(max(t-r,0)):return it.cancel()
+            m,s=divmod(int((t-r)/max(r/max(time.time()-t0,0.1),1)),60) if t>0 else (0,0)
+            try:self.db.setText(f"↓ {int(r*100/t)}% ({sz(t)}) • {m:02d}:{s:02d}" if t>0 else f"↓ {sz(r)}");self.db.setStyleSheet("background:#ff5500")
+            except RuntimeError:pass
+        def done(st):
+            if st==it.DownloadState.DownloadCompleted:
+                s=sz(it.totalBytes() or it.receivedBytes());self.dls.insert(0,(fn,fp,s))
+                try:self.db.setText(f"↓ ✓ ({s})");self.db.setStyleSheet("background:#16a34a")
+                except RuntimeError:pass
+        it.receivedBytesChanged.connect(tick);it.stateChanged.connect(done)
+
+    def menu(self):
+        m=QMenu(self)
+        for fn,fp,s in self.dls[:10]:m.addAction(f"✓ {fn} ({s})").triggered.connect(lambda _,p=fp:QDesktopServices.openUrl(QUrl.fromLocalFile(p)))
+        m.addAction("📂 Open Downloads").triggered.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(DL)))
+        m.exec(self.db.mapToGlobal(self.db.rect().bottomLeft()))
+
+    def flip(self):self.th^=1;self.setStyleSheet(CSS[self.th])
+    def cur(self):return self.tabs.currentWidget()
+
+    def tab(self,u):
+        v=View(self);v.setUrl(u);i=self.tabs.addTab(v,"Tab");self.tabs.setCurrentIndex(i)
+        xb=QPushButton("✕");xb.setStyleSheet("padding:2px 7px;font-size:13px")
+        xb.clicked.connect(lambda _,w=v:self.tabs.removeTab(self.tabs.indexOf(w)) if self.tabs.count()>1 else None)
+        self.tabs.tabBar().setTabButton(i,self.tabs.tabBar().ButtonPosition.RightSide,xb)
+        v.titleChanged.connect(lambda t,w=v:self.tabs.setTabText(self.tabs.indexOf(w),t[:15] or "Tab"))
+        def chk(q,w=v):
+            s=q.toString()
+            if s.startswith("chrome-error://"):w.setUrl(QUrl(f"http://127.0.0.1:{PORT}/err"));self.bar.setText("");return
+            if w==self.cur():self.bar.setText("" if (f"127.0.0.1" in s or s in ("about:blank","")) else s)
+        v.urlChanged.connect(chk);v.page().urlChanged.connect(chk);v.loadFinished.connect(lambda ok,w=v:w.page().toHtml(lambda h:w.setUrl(QUrl(f"http://127.0.0.1:{PORT}/err")) if "ERR_" in h else None) if not ok else None)
+        return v
+
+app=QApplication(sys.argv);app.setApplicationName("Clais HTTPS Browser");app.setDesktopFileName("clais.browser");app.setWindowIcon(QIcon(ICON))
+w=Browser();w.show();sys.exit(app.exec())

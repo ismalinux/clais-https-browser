@@ -1,0 +1,24 @@
+<!DOCTYPE html><html><body style="background:#3b0764;color:#fff;font-family:monospace;margin:0;padding:24px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;height:100vh;box-sizing:border-box">
+<pre style="align-self:flex-start;margin:0;font-size:12px;line-height:1.15;font-weight:bold">
+   .--.
+
+  |o_o |
+  |:_/ |
+ //   \ \
+(|     | )
+/'\_   _/`\
+\___)=(___/
+</pre>
+<canvas id="qr" width="270" height="270" style="background:#fff;padding:10px"></canvas>
+<div style="text-align:center;font-size:13px;line-height:1.6">
+  <b>BROWSER PANIC !</b><br>
+  Aww it hurts! Check your DNS or proxy or your connection.<br>
+  <span style="color:#e9d5ff">FAILED TO READ THE DNS • BCH: 0 PID: 1 Comm: clais-browser</span>
+</div>
+<script>
+const c=qr.getContext('2d'),n=45,s=6;c.fillStyle='#000';
+const box=(x,y)=>{c.fillRect(x*s,y*s,7*s,7*s);c.clearRect((x+1)*s,(y+1)*s,5*s,5*s);c.fillRect((x+2)*s,(y+2)*s,3*s,3*s)};
+for(let y=0;y<n;y++)for(let x=0;x<n;x++)if((x*17+y*31+(x^y)*13)%5<2)c.fillRect(x*s,y*s,s,s);
+box(0,0);box(n-7,0);box(0,n-7);
+</script>
+</body></html>

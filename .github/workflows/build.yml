@@ -1,0 +1,26 @@
+name: Build All OS
+on: [push, workflow_dispatch]
+jobs:
+  win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install PyQt6 PyQt6-WebEngine pyinstaller
+      - run: pyinstaller --noconsole --onefile --add-data "home.html;." --add-data "err.html;." --add-data "icon.svg;." --name "ClaisHTTPSBrowser" clais-browser
+      - uses: actions/upload-artifact@v4
+        with: { name: Windows-EXE, path: dist/*.exe }
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install PyQt6 PyQt6-WebEngine pyinstaller
+      - run: |
+          pyinstaller --windowed --add-data "home.html:." --add-data "err.html:." --add-data "icon.svg:." --name "ClaisHTTPSBrowser" clais-browser
+          hdiutil create -volname "Clais HTTPS Browser" -srcfolder dist/ClaisHTTPSBrowser.app -ov -format UDZO ClaisHTTPSBrowser.dmg
+          pkgbuild --install-location /Applications --component dist/ClaisHTTPSBrowser.app ClaisHTTPSBrowser.pkg
+      - uses: actions/upload-artifact@v4
+        with: { name: macOS-DMG-PKG, path: "*.dmg\n*.pkg" }
